@@ -1,6 +1,8 @@
 # craftos2-plugins
 This repository contains a number of small plugins for CraftOS-PC. These were previously in separate Gists, but were moved here to consolidate them into one repository as well as to provide built versions.
 
+You can download pre-built versions of these plugins for Windows in `x64-windows`.
+
 ## ccemux
 The CCEmuX plugin as included with CraftOS-PC. This repo will only contain a mirror of the original file in the CraftOS-PC repo.
 
