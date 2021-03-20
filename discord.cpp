@@ -38,7 +38,7 @@ static PluginInfo info("discord");
 static PluginFunctions * craftospc;
 static discord::Core* core{};
 static discord::Activity activity;
-static bool connected;
+static bool connected = true;
 
 static FileEntry autorun_hook {
     {"discord.lua", "-- Override loading functions to send info to Discord\n\
@@ -72,8 +72,9 @@ end\n\
 local function revert() lastStatus = lastStatus[3] or {'Unknown State', ''} discord(lastStatus[1], lastStatus[2]) end\n\
 \n\
 _G.load = function(chunk, name, mode, env)\n\
-    if name and name:sub(1, 1) == '@' and mode and not mode:match '_donotwrapfunction$' then\n\
-        local fn, err = native_load(chunk, name, mode:gsub('_donotwrapfunction$', ''), env)\n\
+    if name and name:sub(1, 1) == '@' and not (type(mode) == 'string' and mode:match '_donotwrapfunction$') then\n\
+        if type(mode) == 'string' then mode = mode:gsub('_donotwrapfunction$', '') end\n\
+        local fn, err = native_load(chunk, name, mode, env)\n\
         if not fn then return fn, err end\n\
         return function(...)\n\
             if status(name:sub(2)) then return fn(...) end\n\
@@ -141,7 +142,7 @@ end"}
 
 static int discord_setPresence(lua_State *L) {
     if (!connected) return 0;
-    //fprintf(stderr, "Setting status to %s / %s\n", lua_tostring(L, 1), lua_tostring(L, 2));
+    fprintf(stderr, "Setting status to %s / %s\n", lua_tostring(L, 1), lua_tostring(L, 2));
     activity.SetState(lua_tostring(L, 1));
     activity.SetDetails(lua_tostring(L, 2));
     bool ready = false;
@@ -163,6 +164,7 @@ _declspec(dllexport)
 PluginInfo * plugin_init(PluginFunctions * func, const path_t& path) {
     craftospc = func;
     if (discord::Core::Create(client_id, DiscordCreateFlags_Default, &core) != discord::Result::Ok) {
+        connected = false;
         info.failureReason = "Could not connect to Discord";
         return &info;
     }
