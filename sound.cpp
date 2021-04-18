@@ -76,9 +76,9 @@ static PluginFunctions * func;
 
 #if SDL_BYTEORDER == SDL_LIL_ENDIAN
 #define MAKELE(size, x) (x)
-#define MAKEBE(size, x) (SDL_Swap##size##(x))
+#define MAKEBE(size, x) (SDL_Swap##size(x))
 #else
-#define MAKELE(size, x) (SDL_Swap##size##(x))
+#define MAKELE(size, x) (SDL_Swap##size(x))
 #define MAKEBE(size, x) (x)
 #endif
 
