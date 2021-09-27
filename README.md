@@ -89,6 +89,19 @@ To use a joystick, call `joystick.open(id)`. This will return a new joystick han
   * *number* x: -1 if left, 0 if center, 1 if right
   * *number* y: -1 if down, 0 if center, 1 if up
 
+## periphemu_lua
+Allows you to register custom peripherals that call back to Lua functions.
+
+### Installation
+Just drop the plugin file into `plugins`.
+
+### API
+The `periphemu_lua` API contains a single function `create` to register a peripheral type. It takes the name of the peripheral (string), and a table with all of the methods of the peripheral. Each method takes a `self` argument in the beginning, which is an empty table that is unique to each peripheral instance, and can be used to store state for that peripheral.
+
+A `__new` method may be added, which is called when the peripheral is attached, and takes `self`, the side of the peripheral, the type, and any arguments passed to `periphemu.create`. This can be used to set up the state of the peripheral before use.
+
+While creating a peripheral registers it for all computers, it will not be usable on computers that have not called `create` first. In addition, registered peripherals may not be removed later, but their methods can be modified at any time by calling `create` again.
+
 ## sound
 Adds a number of programmable sound channels (default 4) that play sound waves with the specified frequency, wave type, volume, and pan position.
 
