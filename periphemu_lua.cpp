@@ -110,9 +110,6 @@ static int periphemu_lua_create(lua_State *L) {
         lua_pushvalue(L, -1);
         lua_setfield(L, LUA_REGISTRYINDEX, "periphemu_lua");
     }
-    lua_getfield(L, -1, type);
-    if (!lua_isnil(L, -1)) return luaL_error(L, "Peripheral type %s already exists", type);
-    lua_pop(L, 1);
     lua_pushvalue(L, 2);
     lua_setfield(L, -2, type);
     functions->registerPeripheralFn(type, [type](lua_State *L, const char * side) {return new lua_peripheral(L, side, type);});
