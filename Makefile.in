@@ -1,0 +1,20 @@
+CC=@CC@
+CXX=@CXX@
+CFLAGS=@CFLAGS@
+CPPFLAGS=@CPPFLAGS@
+CXXFLAGS=@CXXFLAGS@
+LDFLAGS=@LDFLAGS@
+LIBS=@LIBS@
+
+all: ccemux.@so@ @DISCORD_TARGET@ joystick.@so@ periphemu_lua.@so@ @SOUND_TARGET@
+
+%.@so@: %.cpp
+	echo " [LD]    $@"
+	$(CXX) $(CFLAGS) $(CXXFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS) $(LIBS)
+
+clean:
+	rm -f *.@so@
+
+rebuild: clean all
+
+.SILENT:

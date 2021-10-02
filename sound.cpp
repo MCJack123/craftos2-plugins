@@ -34,7 +34,7 @@
 #include <chrono>
 #include <random>
 #include <mutex>
-#define NUM_CHANNELS ((int)get_comp(L)->userdata[ChannelInfo::identifier+1])
+#define NUM_CHANNELS ((int)(ptrdiff_t)get_comp(L)->userdata[ChannelInfo::identifier+1])
 #define channelGroup(id) ((id) | 0x74A800)
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -361,7 +361,7 @@ int luaopen_sound(lua_State *L) {
             Mix_PlayChannel(channels[i].channelNumber, empty_chunk, -1);
         }
         comp->userdata[ChannelInfo::identifier] = channels;
-        comp->userdata[ChannelInfo::identifier+1] = (void*)num_channels;
+        comp->userdata[ChannelInfo::identifier+1] = (void*)(ptrdiff_t)num_channels;
         comp->userdata_destructors[ChannelInfo::identifier] = ChannelInfo_destructor;
     }
     luaL_register(L, "sound", sound_lib);

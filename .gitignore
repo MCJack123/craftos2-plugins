@@ -1,0 +1,7 @@
+client_id.h
+Makefile
+config.log
+config.status
+autom4te.cache
+*.so
+*.bundle

@@ -292,7 +292,10 @@ static luaL_Reg reg[] = {
 };
 
 extern "C" {
-__declspec(dllexport) PluginInfo * plugin_init(const PluginFunctions * func, const path_t& path) {
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+PluginInfo * plugin_init(const PluginFunctions * func, const path_t& path) {
     functions = func;
     func->registerSDLEvent(SDL_JOYAXISMOTION, axisChange, NULL);
     func->registerSDLEvent(SDL_JOYBALLMOTION, ballChange, NULL);
@@ -306,10 +309,16 @@ __declspec(dllexport) PluginInfo * plugin_init(const PluginFunctions * func, con
     return &info;
 }
 
-__declspec(dllexport) int luaopen_joystick(lua_State *L) {
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+int luaopen_joystick(lua_State *L) {
     luaL_register(L, "joystick", reg);
     return 1;
 }
 
-__declspec(dllexport) void plugin_deinit(PluginInfo * info) {for (SDL_Joystick * j : joys) SDL_JoystickClose(j);}
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+void plugin_deinit(PluginInfo * info) {for (SDL_Joystick * j : joys) SDL_JoystickClose(j);}
 }
