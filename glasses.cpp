@@ -125,63 +125,63 @@ static SDL_Point luaL_checkpoint(lua_State *L, int arg) {
 // Code borrowed from SDL2_gfx
 static int thickLineColor_ren(SDL_Renderer *renderer, Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 width, Uint32 color)
 {
-	int wh;
-	double dx, dy, dx1, dy1, dx2, dy2;
-	double l, wl2, nx, ny, ang, adj;
-	SDL_Vertex vertices[6];
+    int wh;
+    double dx, dy, dx1, dy1, dx2, dy2;
+    double l, wl2, nx, ny, ang, adj;
+    SDL_Vertex vertices[6];
 
-	if (renderer == NULL) {
-		return -1;
-	}
+    if (renderer == NULL) {
+        return -1;
+    }
 
-	if (width < 1) {
-		return -1;
-	}
+    if (width < 1) {
+        return -1;
+    }
 
-	/* Special case: thick "point" */
-	if ((x1 == x2) && (y1 == y2)) {
-		wh = width / 2;
-		return boxRGBA(renderer, x1 - wh, y1 - wh, x2 + width, y2 + width, rgba(color));		
-	}
+    /* Special case: thick "point" */
+    if ((x1 == x2) && (y1 == y2)) {
+        wh = width / 2;
+        return boxRGBA(renderer, x1 - wh, y1 - wh, x2 + width, y2 + width, rgba(color));		
+    }
 
-	/* Special case: width == 1 */
-	if (width == 1) {
-		return lineRGBA(renderer, x1, y1, x2, y2, rgba(color));		
-	}
+    /* Special case: width == 1 */
+    if (width == 1) {
+        return lineRGBA(renderer, x1, y1, x2, y2, rgba(color));		
+    }
 
-	/* Calculate offsets for sides */
-	dx = (double)(x2 - x1);
-	dy = (double)(y2 - y1);
-	l = SDL_sqrt(dx*dx + dy*dy);
-	ang = SDL_atan2(dx, dy);
-	adj = 0.1 + 0.9 * SDL_fabs(SDL_cos(2.0 * ang));
-	wl2 = ((double)width - adj)/(2.0 * l);
-	nx = dx * wl2;
-	ny = dy * wl2;
+    /* Calculate offsets for sides */
+    dx = (double)(x2 - x1);
+    dy = (double)(y2 - y1);
+    l = SDL_sqrt(dx*dx + dy*dy);
+    ang = SDL_atan2(dx, dy);
+    adj = 0.1 + 0.9 * SDL_fabs(SDL_cos(2.0 * ang));
+    wl2 = ((double)width - adj)/(2.0 * l);
+    nx = dx * wl2;
+    ny = dy * wl2;
 
-	/* Build polygon */
-	dx1 = (double)x1;
-	dy1 = (double)y1;
-	dx2 = (double)x2;
-	dy2 = (double)y2;
-	vertices[0].position.x = (dx1 + ny);
-	vertices[1].position.x = (dx1 - ny);
-	vertices[2].position.x = (dx2 - ny);
-	vertices[3].position.x = (dx2 + ny);
+    /* Build polygon */
+    dx1 = (double)x1;
+    dy1 = (double)y1;
+    dx2 = (double)x2;
+    dy2 = (double)y2;
+    vertices[0].position.x = (dx1 + ny);
+    vertices[1].position.x = (dx1 - ny);
+    vertices[2].position.x = (dx2 - ny);
+    vertices[3].position.x = (dx2 + ny);
     vertices[4].position.x = (dx1 + ny);
-	vertices[5].position.x = (dx2 - ny);
-	vertices[0].position.y = (dy1 - nx);
-	vertices[1].position.y = (dy1 + nx);
-	vertices[2].position.y = (dy2 + nx);
-	vertices[3].position.y = (dy2 - nx);
+    vertices[5].position.x = (dx2 - ny);
+    vertices[0].position.y = (dy1 - nx);
+    vertices[1].position.y = (dy1 + nx);
+    vertices[2].position.y = (dy2 + nx);
+    vertices[3].position.y = (dy2 - nx);
     vertices[4].position.y = (dy1 - nx);
-	vertices[5].position.y = (dy2 + nx);
+    vertices[5].position.y = (dy2 + nx);
     for (wh = 0; wh < 6; wh++) {
         vertices[wh].color = {rgba(color)};
         vertices[wh].tex_coord = {0, 0};
     }
 
-	/* Draw polygon */
+    /* Draw polygon */
     return SDL_RenderGeometry(renderer, NULL, vertices, 6, NULL, 0);
 }
 
