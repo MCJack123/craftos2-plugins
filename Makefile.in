@@ -6,7 +6,7 @@ CXXFLAGS=@CXXFLAGS@
 LDFLAGS=@LDFLAGS@
 LIBS=@LIBS@
 
-all: ccemux.@so@ @DISCORD_TARGET@ joystick.@so@ periphemu_lua.@so@ @SOUND_TARGET@
+all: ccemux.@so@ @DISCORD_TARGET@ @GLASSES_TARGET@ joystick.@so@ periphemu_lua.@so@ @SOUND_TARGET@
 
 %.@so@: %.cpp
 	echo " [LD]    $@"

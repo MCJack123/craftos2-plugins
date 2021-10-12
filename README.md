@@ -18,6 +18,22 @@ Drop the plugin file into the `plugins` directory. In addition, download [the Di
 ### Usage
 Just launch CraftOS-PC, and rich presence will automatically enable. If you use cash, you'll need to run `rom/autorun/discord.lua` to enable it.
 
+## glasses
+Adds the Plethora and Advanced Peripherals AR Glasses/Goggles, allowing vector graphics in a separate window.
+
+Current status:
+* Only Plethora Glasses implemented at the moment.
+* No 3D canvas support.
+* Items are not implemented yet.
+* Using any object after the peripheral is deleted will crash.
+* The current SDL version included with CraftOS-PC (2.0.16) is not compatible with this, as this uses a function that will be added in 2.0.18.
+
+### Installation
+Drop the plugin file into `plugins`, and add `SDL2_gfx` and `SDL2_ttf` to the application directory or next to the plugin. On versions of CraftOS-PC released before December 2021, you'll also need to drop a newly-built SDL2 library from GitHub over the old one, since this uses a function not available until SDL 2.0.18.
+
+### API
+See the [Plethora](https://plethora.madefor.cc/methods.html#module-methods-plethora:glasses) and [Advanced Peripherals](https://docs.srendi.de/peripherals/ar_controller/) documentation.
+
 ## joystick
 Adds the ability to use joysticks and gamepads with CraftOS-PC.
 

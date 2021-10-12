@@ -5,3 +5,4 @@ config.status
 autom4te.cache
 *.so
 *.bundle
+.vscode

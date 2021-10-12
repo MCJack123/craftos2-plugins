@@ -647,6 +647,7 @@ ac_includes_default="\
 ac_header_cxx_list=
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
+GLASSES_TARGET
 DISCORD_TARGET
 SOUND_TARGET
 so
@@ -704,6 +705,7 @@ ac_user_opts='
 enable_option_checking
 with_sdl_mixer
 with_discord
+with_glasses
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1338,6 +1340,8 @@ Optional Packages:
   --without-sdl_mixer     do not build sound plugin
   --with-discord          build Discord plugin
   --without-discord       do not build Discord plugin
+  --with-glasses          build glasses plugin
+  --without-glasses       do not build glasses plugin
 
 Some influential environment variables:
   CC          C compiler command
@@ -2555,6 +2559,20 @@ fi
 if test ${with_discord+y}
 then :
   withval=$with_discord;
+fi
+
+
+# Check whether --with-glasses was given.
+if test ${with_glasses+y}
+then :
+  withval=$with_glasses;
+fi
+
+
+# Check whether --with-glasses was given.
+if test ${with_glasses+y}
+then :
+  withval=$with_glasses;
 fi
 
 
@@ -4148,7 +4166,255 @@ else $as_nop
 fi
 
 done
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for library containing SDL_Init" >&5
+       for ac_header in SDL2/SDL.h
+do :
+  ac_fn_cxx_check_header_compile "$LINENO" "SDL2/SDL.h" "ac_cv_header_SDL2_SDL_h" "$ac_includes_default"
+if test "x$ac_cv_header_SDL2_SDL_h" = xyes
+then :
+  printf "%s\n" "#define HAVE_SDL2_SDL_H 1" >>confdefs.h
+
+else $as_nop
+  as_fn_error $? "Could not find SDL2 header." "$LINENO" 5
+fi
+
+done
+
+if test "x$with_glasses" != "xno"
+then :
+
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for library containing SDL_RenderGeometry" >&5
+printf %s "checking for library containing SDL_RenderGeometry... " >&6; }
+if test ${ac_cv_search_SDL_RenderGeometry+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  ac_func_search_save_LIBS=$LIBS
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+namespace conftest {
+  extern "C" int SDL_RenderGeometry ();
+}
+int
+main (void)
+{
+return conftest::SDL_RenderGeometry ();
+  ;
+  return 0;
+}
+_ACEOF
+for ac_lib in '' SDL2
+do
+  if test -z "$ac_lib"; then
+    ac_res="none required"
+  else
+    ac_res=-l$ac_lib
+    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
+  fi
+  if ac_fn_cxx_try_link "$LINENO"
+then :
+  ac_cv_search_SDL_RenderGeometry=$ac_res
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext
+  if test ${ac_cv_search_SDL_RenderGeometry+y}
+then :
+  break
+fi
+done
+if test ${ac_cv_search_SDL_RenderGeometry+y}
+then :
+
+else $as_nop
+  ac_cv_search_SDL_RenderGeometry=no
+fi
+rm conftest.$ac_ext
+LIBS=$ac_func_search_save_LIBS
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_SDL_RenderGeometry" >&5
+printf "%s\n" "$ac_cv_search_SDL_RenderGeometry" >&6; }
+ac_res=$ac_cv_search_SDL_RenderGeometry
+if test "$ac_res" != no
+then :
+  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
+
+else $as_nop
+  if test "x$with_glasses" = "xyes"
+then :
+  as_fn_error $? "SDL2 library is too old." "$LINENO" 5
+else $as_nop
+  NO_GLASSES=1
+fi
+fi
+
+           for ac_header in SDL2/SDL2_gfxPrimitives.h
+do :
+  ac_fn_cxx_check_header_compile "$LINENO" "SDL2/SDL2_gfxPrimitives.h" "ac_cv_header_SDL2_SDL2_gfxPrimitives_h" "$ac_includes_default"
+if test "x$ac_cv_header_SDL2_SDL2_gfxPrimitives_h" = xyes
+then :
+  printf "%s\n" "#define HAVE_SDL2_SDL2_GFXPRIMITIVES_H 1" >>confdefs.h
+
+else $as_nop
+  if test "x$with_glasses" = "xyes"
+then :
+  as_fn_error $? "Could not find SDL2_gfx header." "$LINENO" 5
+else $as_nop
+  NO_GLASSES=1
+fi
+fi
+
+done
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for library containing boxColor" >&5
+printf %s "checking for library containing boxColor... " >&6; }
+if test ${ac_cv_search_boxColor+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  ac_func_search_save_LIBS=$LIBS
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+namespace conftest {
+  extern "C" int boxColor ();
+}
+int
+main (void)
+{
+return conftest::boxColor ();
+  ;
+  return 0;
+}
+_ACEOF
+for ac_lib in '' SDL2_gfx
+do
+  if test -z "$ac_lib"; then
+    ac_res="none required"
+  else
+    ac_res=-l$ac_lib
+    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
+  fi
+  if ac_fn_cxx_try_link "$LINENO"
+then :
+  ac_cv_search_boxColor=$ac_res
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext
+  if test ${ac_cv_search_boxColor+y}
+then :
+  break
+fi
+done
+if test ${ac_cv_search_boxColor+y}
+then :
+
+else $as_nop
+  ac_cv_search_boxColor=no
+fi
+rm conftest.$ac_ext
+LIBS=$ac_func_search_save_LIBS
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_boxColor" >&5
+printf "%s\n" "$ac_cv_search_boxColor" >&6; }
+ac_res=$ac_cv_search_boxColor
+if test "$ac_res" != no
+then :
+  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
+
+else $as_nop
+  if test "x$with_glasses" = "xyes"
+then :
+  as_fn_error $? "Could not find SDL2_gfx library." "$LINENO" 5
+else $as_nop
+  NO_GLASSES=1
+fi
+fi
+
+           for ac_header in SDL2/SDL_ttf.h
+do :
+  ac_fn_cxx_check_header_compile "$LINENO" "SDL2/SDL_ttf.h" "ac_cv_header_SDL2_SDL_ttf_h" "$ac_includes_default"
+if test "x$ac_cv_header_SDL2_SDL_ttf_h" = xyes
+then :
+  printf "%s\n" "#define HAVE_SDL2_SDL_TTF_H 1" >>confdefs.h
+
+else $as_nop
+  if test "x$with_glasses" = "xyes"
+then :
+  as_fn_error $? "Could not find SDL2_ttf header." "$LINENO" 5
+else $as_nop
+  NO_GLASSES=1
+fi
+fi
+
+done
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for library containing TTF_Init" >&5
+printf %s "checking for library containing TTF_Init... " >&6; }
+if test ${ac_cv_search_TTF_Init+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  ac_func_search_save_LIBS=$LIBS
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+namespace conftest {
+  extern "C" int TTF_Init ();
+}
+int
+main (void)
+{
+return conftest::TTF_Init ();
+  ;
+  return 0;
+}
+_ACEOF
+for ac_lib in '' SDL2_ttf
+do
+  if test -z "$ac_lib"; then
+    ac_res="none required"
+  else
+    ac_res=-l$ac_lib
+    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
+  fi
+  if ac_fn_cxx_try_link "$LINENO"
+then :
+  ac_cv_search_TTF_Init=$ac_res
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext
+  if test ${ac_cv_search_TTF_Init+y}
+then :
+  break
+fi
+done
+if test ${ac_cv_search_TTF_Init+y}
+then :
+
+else $as_nop
+  ac_cv_search_TTF_Init=no
+fi
+rm conftest.$ac_ext
+LIBS=$ac_func_search_save_LIBS
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_TTF_Init" >&5
+printf "%s\n" "$ac_cv_search_TTF_Init" >&6; }
+ac_res=$ac_cv_search_TTF_Init
+if test "$ac_res" != no
+then :
+  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
+
+else $as_nop
+  if test "x$with_glasses" = "xyes"
+then :
+  as_fn_error $? "Could not find SDL2_ttf library." "$LINENO" 5
+else $as_nop
+  NO_GLASSES=1
+fi
+fi
+
+
+else $as_nop
+
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for library containing SDL_Init" >&5
 printf %s "checking for library containing SDL_Init... " >&6; }
 if test ${ac_cv_search_SDL_Init+y}
 then :
@@ -4208,18 +4474,9 @@ else $as_nop
   as_fn_error $? "Could not find SDL2 library." "$LINENO" 5
 fi
 
-       for ac_header in SDL2/SDL.h
-do :
-  ac_fn_cxx_check_header_compile "$LINENO" "SDL2/SDL.h" "ac_cv_header_SDL2_SDL_h" "$ac_includes_default"
-if test "x$ac_cv_header_SDL2_SDL_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SDL2_SDL_H 1" >>confdefs.h
+    NO_DISCORD=1
 
-else $as_nop
-  as_fn_error $? "Could not find SDL2 header." "$LINENO" 5
 fi
-
-done
 
 if test "x$with_sdl_mixer" != "xno"
 then :
@@ -4698,6 +4955,13 @@ fi
 if test "x$NO_DISCORD" != "x1"
 then :
   DISCORD_TARGET=discord.$SO
+
+else $as_nop
+
+fi
+if test "x$NO_GLASSES" != "x1"
+then :
+  GLASSES_TARGET=glasses.$SO
 
 else $as_nop
 
