@@ -29,7 +29,7 @@ Current status:
 * The current SDL version included with CraftOS-PC (2.0.16) is not compatible with this, as this uses a function that will be added in 2.0.18.
 
 ### Installation
-Drop the plugin file into `plugins`, and add `SDL2_gfx` and `SDL2_ttf` to the application directory or next to the plugin. On versions of CraftOS-PC released before December 2021, you'll also need to drop a newly-built SDL2 library from GitHub over the old one, since this uses a function not available until SDL 2.0.18.
+Drop the `glasses.dll` plugin file into `plugins`, and add the rest of the libraries to the application directory or next to the plugin.
 
 ### API
 See the [Plethora](https://plethora.madefor.cc/methods.html#module-methods-plethora:glasses) and [Advanced Peripherals](https://docs.srendi.de/peripherals/ar_controller/) documentation.

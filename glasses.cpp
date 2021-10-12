@@ -1221,6 +1221,12 @@ _declspec(dllexport)
 #endif
 PluginInfo * plugin_init(PluginFunctions * func, const path_t& path) {
     functions = func;
+    SDL_version v;
+    SDL_GetVersion(&v);
+    if (v.patch < 18) {
+        info.failureReason = "SDL version too old; please replace SDL in the executable";
+        return &info;
+    }
     TTF_Init();
     renderThread = std::thread(glassesRenderLoop);
     func->registerPeripheral("glasses", &plethora_glasses::init);

@@ -6,3 +6,7 @@ autom4te.cache
 *.so
 *.bundle
 .vscode
+/*.dll
+*.lib
+*.exp
+*.obj
