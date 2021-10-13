@@ -1223,7 +1223,7 @@ PluginInfo * plugin_init(PluginFunctions * func, const path_t& path) {
     functions = func;
     SDL_version v;
     SDL_GetVersion(&v);
-    if (v.patch < 18) {
+    if (v.patch < 17) {
         info.failureReason = "SDL version too old; please replace SDL in the executable";
         return &info;
     }
