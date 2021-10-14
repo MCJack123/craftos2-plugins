@@ -42,20 +42,27 @@ extern "C" {
 #include "polypartition.h"
 #include "polypartition.cpp"
 
+#define POINTERLIST_INDEX 0x196aedc0
 #define rgba(color) (Uint8)((color >> 24) & 0xFF), (Uint8)((color >> 16) & 0xFF), (Uint8)((color >> 8) & 0xFF), (Uint8)(color & 0xFF)
-#define addLuaMethod(name) lua_pushlightuserdata(L, this); \
-    lua_pushcclosure(L, _lua_##name, 1); \
+#define addLuaMethod(name) lua_pushlightuserdata(L, ptr); \
+    lua_pushcclosure(L, _lua_##name<T>, 1); \
     lua_setfield(L, -2, #name);
-#define LuaGetMethod(type, name, vartype) static int _lua_##name(lua_State *L) { \
-        lua_push##vartype(L, ((type*)lua_touserdata(L, lua_upvalueindex(1)))->name()); \
+#define LuaGetMethod(type, name, vartype) \
+    template<class T> \
+    static int _lua_##name(lua_State *L) { \
+        lua_push##vartype(L, getUpvalue<T>(L)->name()); \
         return 1; \
     }
-#define LuaSetMethod(type, name, vartype) static int _lua_##name(lua_State *L) { \
-        ((type*)lua_touserdata(L, lua_upvalueindex(1)))->name(luaL_check##vartype(L, 1)); \
+#define LuaSetMethod(type, name, vartype) \
+    template<class T> \
+    static int _lua_##name(lua_State *L) { \
+        getUpvalue<T>(L)->name(luaL_check##vartype(L, 1)); \
         return 0; \
     }
-#define LuaVoidMethod(type, name) static int _lua_##name(lua_State *L) { \
-        ((type*)lua_touserdata(L, lua_upvalueindex(1)))->name(); \
+#define LuaVoidMethod(type, name) \
+    template<class T> \
+    static int _lua_##name(lua_State *L) { \
+        getUpvalue<T>(L)->name(); \
         return 0; \
     }
 
@@ -64,6 +71,11 @@ namespace objects {namespace object2d {class Frame2D;}}
 struct Item {
     std::string name;
     int damage;
+};
+
+struct pointerlist_t {
+    void* ptr = NULL;
+    pointerlist_t* next = NULL;
 };
 
 struct GlassesRenderer {
@@ -185,6 +197,24 @@ static int thickLineColor_ren(SDL_Renderer *renderer, Sint16 x1, Sint16 y1, Sint
     return SDL_RenderGeometry(renderer, NULL, vertices, 6, NULL, 0);
 }
 
+static void* savePointer(lua_State *L, void* ptr) {
+    pointerlist_t * pointerlist = (pointerlist_t*)get_comp(L)->userdata[POINTERLIST_INDEX];
+    while (pointerlist->next) {
+        pointerlist = pointerlist->next;
+        if (pointerlist->ptr == ptr) return pointerlist;
+    }
+    pointerlist->next = new pointerlist_t;
+    pointerlist->next->ptr = ptr;
+    return pointerlist->next;
+}
+
+template<typename T>
+static T* getUpvalue(lua_State *L) {
+    T *ptr = static_cast<T*>(((pointerlist_t*)lua_touserdata(L, lua_upvalueindex(1)))->ptr); \
+    if (ptr == NULL) luaL_error(L, "object does not exist"); \
+    return ptr;
+}
+
 // This imitates the structure of Plethora's objects.
 namespace objects {
 
@@ -192,34 +222,44 @@ namespace objects {
 
     struct ObjectGroup;
 
-    struct LuaObject {
-        virtual void toLua(lua_State *L) = 0;
-    };
-
-    class BaseObject: public LuaObject {
+    class BaseObject {
+        std::unordered_set<Computer*> accessors;
         LuaVoidMethod(BaseObject, remove)
     protected:
         ObjectGroup * parent;
     public:
         BaseObject(ObjectGroup * p): parent(p) {}
+        virtual ~BaseObject() {
+            for (Computer * comp : accessors) {
+                pointerlist_t * list = (pointerlist_t*)comp->userdata[POINTERLIST_INDEX];
+                while (list->next) {
+                    list = list->next;
+                    if (list->ptr == this) list->ptr = NULL;
+                }
+            }
+        }
         virtual void remove();
         virtual void draw(GlassesRenderer * ren, SDL_Point transform) = 0;
         virtual void setDirty();
-        virtual void toLua(lua_State *L) override {
+
+        template<class T>
+        void toLua(lua_State *L, void* ptr) {
+            accessors.insert(get_comp(L));
             lua_newtable(L);
             addLuaMethod(remove);
         }
     };
 
-    struct Colorable: public LuaObject {
+    struct Colorable {
         static const unsigned int DEFAULT_COLOR = 0xFFFFFFFF;
         virtual int getAlpha() const = 0;
         virtual unsigned int getColor() const = 0;
         virtual void setAlpha(int alpha) = 0;
         virtual void setColor(unsigned int rgb) = 0;
         virtual void setColor(int r, int g, int b, int a = 255) = 0;
-        // MARK: LuaObject
-        virtual void toLua(lua_State *L) override {
+
+        template<class T>
+        void toLua(lua_State *L, void* ptr) {
             addLuaMethod(getAlpha)
             addLuaMethod(getColor)
             addLuaMethod(setAlpha)
@@ -228,40 +268,46 @@ namespace objects {
     private:
         LuaGetMethod(Colorable, getAlpha, integer)
         LuaGetMethod(Colorable, getColor, integer)
+        template<class T>
         static int _lua_setAlpha(lua_State *L) {
-            ((Colorable*)lua_touserdata(L, lua_upvalueindex(1)))->setAlpha(luaL_checkinteger(L, 1) & 0xFF);
+            getUpvalue<T>(L)->setAlpha(luaL_checkinteger(L, 1) & 0xFF);
             return 0;
         }
+        template<class T>
         static int _lua_setColor(lua_State *L) {
-            Colorable * obj = (Colorable*)lua_touserdata(L, lua_upvalueindex(1));
+            T * obj = *(T**)lua_touserdata(L, lua_upvalueindex(1));
+            if (obj == NULL) luaL_error(L, "object does not exist");
             if (!lua_isnoneornil(L, 2)) obj->setColor(luaL_checkinteger(L, 1) & 0xFF, luaL_checkinteger(L, 2) & 0xFF, luaL_checkinteger(L, 3) & 0xFF, luaL_optinteger(L, 4, 0xFF) & 0xFF);
             else obj->setColor(luaL_checkinteger(L, 1) & 0xFFFFFFFF);
             return 0;
         }
     };
 
-    struct ItemObject: public LuaObject {
+    struct ItemObject {
         virtual Item getItem() const = 0;
         virtual void setItem(Item item) = 0;
-        // MARK: LuaObject
-        virtual void toLua(lua_State *L) override {
+        
+        template<class T>
+        void toLua(lua_State *L, void* ptr) {
             addLuaMethod(getItem)
             addLuaMethod(setItem)
         }
     private:
+        template<class T>
         static int _lua_getItem(lua_State *L) {
-            Item it = ((ItemObject*)lua_touserdata(L, lua_upvalueindex(1)))->getItem();
+            Item it = getUpvalue<T>(L)->getItem();
             lua_pushstring(L, it.name.c_str());
             lua_pushinteger(L, it.damage);
             return 2;
         }
+        template<class T>
         static int _lua_setItem(lua_State *L) {
-            ((ItemObject*)lua_touserdata(L, lua_upvalueindex(1)))->setItem({luaL_checkstring(L, 1), (int)luaL_optinteger(L, 2, 0)});
+            getUpvalue<T>(L)->setItem({luaL_checkstring(L, 1), (int)luaL_optinteger(L, 2, 0)});
             return 0;
         }
     };
 
-    struct ObjectGroup: public LuaObject {
+    struct ObjectGroup {
         std::vector<BaseObject*> children;
         ~ObjectGroup() {
             for (BaseObject * o : children) delete o;
@@ -269,18 +315,20 @@ namespace objects {
         virtual void clear() = 0;
         virtual void setDirty() = 0;
         // MARK: LuaObject
-        virtual void toLua(lua_State *L) override {
+        template<class T>
+        void toLua(lua_State *L, void* ptr) {
             addLuaMethod(clear)
         }
     private:
         LuaVoidMethod(ObjectGroup, clear)
     };
 
-    struct Scalable: public LuaObject {
+    struct Scalable {
         virtual double getScale() const = 0;
         virtual void setScale(double scale) = 0;
         // MARK: LuaObject
-        virtual void toLua(lua_State *L) override {
+        template<class T>
+        void toLua(lua_State *L, void* ptr) {
             addLuaMethod(getScale)
             addLuaMethod(setScale)
         }
@@ -289,7 +337,7 @@ namespace objects {
         LuaSetMethod(Scalable, setScale, number)
     };
 
-    struct TextObject: public LuaObject {
+    struct TextObject {
         virtual int getLineHeight() const = 0;
         virtual const char * getText() const = 0;
         virtual bool hasShadow() const = 0;
@@ -297,7 +345,8 @@ namespace objects {
         virtual void setShadow(bool shadow) = 0;
         virtual void setText(const char * text) = 0;
         // MARK: LuaObject
-        virtual void toLua(lua_State *L) override {
+        template<class T>
+        void toLua(lua_State *L, void* ptr) {
             addLuaMethod(getLineHeight)
             addLuaMethod(getText)
             addLuaMethod(hasShadow)
@@ -311,8 +360,9 @@ namespace objects {
         LuaGetMethod(TextObject, hasShadow, boolean)
         LuaSetMethod(TextObject, setLineHeight, integer)
         LuaSetMethod(TextObject, setText, string)
+        template<class T>
         static int _lua_setShadow(lua_State *L) {
-            ((TextObject*)lua_touserdata(L, lua_upvalueindex(1)))->setShadow(lua_toboolean(L, 1));
+            getUpvalue<T>(L)->setShadow(lua_toboolean(L, 1));
             return 0;
         }
     };
@@ -328,9 +378,10 @@ namespace objects {
 
         // MARK: LuaObject
 
-        virtual void toLua(lua_State *L) override {
-            BaseObject::toLua(L);
-            Colorable::toLua(L);
+        template<class T>
+        void toLua(lua_State *L, void* ptr) {
+            BaseObject::toLua<T>(L, ptr);
+            Colorable::toLua<T>(L, ptr);
         }
 
         // MARK: Colorable
@@ -362,39 +413,45 @@ namespace objects {
 
         // Interfaces
 
-        struct Positionable2D: public LuaObject {
+        struct Positionable2D {
             virtual SDL_Point getPosition() const = 0;
             virtual void setPosition(SDL_Point pos) = 0;
             // MARK: LuaObject
-            virtual void toLua(lua_State *L) override {
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
                 addLuaMethod(getPosition)
                 addLuaMethod(setPosition)
             }
         private:
+            template<class T>
             static int _lua_getPosition(lua_State *L) {
-                SDL_Point p = ((Positionable2D*)lua_touserdata(L, lua_upvalueindex(1)))->getPosition();
+                SDL_Point p = getUpvalue<T>(L)->getPosition();
                 lua_pushinteger(L, p.x);
                 lua_pushinteger(L, p.y);
                 return 2;
             }
+            template<class T>
             static int _lua_setPosition(lua_State *L) {
-                ((Positionable2D*)lua_touserdata(L, lua_upvalueindex(1)))->setPosition({(int)luaL_checkinteger(L, 1), (int)luaL_checkinteger(L, 2)});
+                getUpvalue<T>(L)->setPosition({(int)luaL_checkinteger(L, 1), (int)luaL_checkinteger(L, 2)});
                 return 0;
             }
         };
 
-        struct MultiPoint2D: public LuaObject {
+        struct MultiPoint2D {
             virtual int getPointCount() const = 0;
             virtual SDL_Point getPoint(int idx) const = 0;
             virtual void setPoint(int idx, SDL_Point pt) = 0;
             // MARK: LuaObject
-            virtual void toLua(lua_State *L) override {
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
                 addLuaMethod(getPoint)
                 addLuaMethod(setPoint)
             }
         private:
+            template<class T>
             static int _lua_getPoint(lua_State *L) {
-                MultiPoint2D * obj = (MultiPoint2D*)lua_touserdata(L, lua_upvalueindex(1));
+                T * obj = *(T**)lua_touserdata(L, lua_upvalueindex(1));
+                if (obj == NULL) luaL_error(L, "object does not exist");
                 int idx = luaL_checkinteger(L, 1);
                 if (idx < 1 || idx > obj->getPointCount()) luaL_error(L, "bad argument #1 (index out of range)");
                 SDL_Point p = obj->getPoint(idx - 1);
@@ -402,8 +459,10 @@ namespace objects {
                 lua_pushinteger(L, p.y);
                 return 2;
             }
+            template<class T>
             static int _lua_setPoint(lua_State *L) {
-                MultiPoint2D * obj = (MultiPoint2D*)lua_touserdata(L, lua_upvalueindex(1));
+                T * obj = *(T**)lua_touserdata(L, lua_upvalueindex(1));
+                if (obj == NULL) luaL_error(L, "object does not exist");
                 int idx = luaL_checkinteger(L, 1);
                 if (idx < 1 || idx > obj->getPointCount()) luaL_error(L, "bad argument #1 (index out of range)");
                 obj->setPoint(idx - 1, {(int)luaL_checkinteger(L, 2), (int)luaL_checkinteger(L, 3)});
@@ -415,16 +474,19 @@ namespace objects {
             virtual void insertPoint(int x, int y, int idx = INT_MAX) = 0;
             virtual void removePoint(int idx) = 0;
             // MARK: LuaObject
-            virtual void toLua(lua_State *L) override {
-                MultiPoint2D::toLua(L);
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
+                MultiPoint2D::toLua<T>(L, ptr);
                 addLuaMethod(getPointCount)
                 addLuaMethod(insertPoint)
                 addLuaMethod(removePoint)
             }
         private:
             LuaGetMethod(MultiPoint2D, getPointCount, integer)
+            template<class T>
             static int _lua_insertPoint(lua_State *L) {
-                MultiPointResizable2D * obj = (MultiPointResizable2D*)lua_touserdata(L, lua_upvalueindex(1));
+                T * obj = *(T**)lua_touserdata(L, lua_upvalueindex(1));
+                if (obj == NULL) luaL_error(L, "object does not exist");
                 if (!lua_isnoneornil(L, 3)) {
                     int idx = luaL_checkinteger(L, 1);
                     if (idx < 1) luaL_error(L, "bad argument #1 (index out of range)");
@@ -432,8 +494,10 @@ namespace objects {
                 } else obj->insertPoint(luaL_checkinteger(L, 1), luaL_checkinteger(L, 2));
                 return 0;
             }
+            template<class T>
             static int _lua_removePoint(lua_State *L) {
-                MultiPointResizable2D * obj = (MultiPointResizable2D*)lua_touserdata(L, lua_upvalueindex(1));
+                T * obj = *(T**)lua_touserdata(L, lua_upvalueindex(1));
+                if (obj == NULL) luaL_error(L, "object does not exist");
                 int idx = luaL_checkinteger(L, 1);
                 if (idx < 1 || idx > obj->getPointCount()) luaL_error(L, "bad argument #1 (index out of range)");
                 obj->removePoint(idx - 1);
@@ -457,10 +521,11 @@ namespace objects {
 
             // MARK: LuaObject
 
-            virtual void toLua(lua_State *L) override {
-                ColorableObject::toLua(L);
-                Positionable2D::toLua(L);
-                Scalable::toLua(L);
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
+                ColorableObject::toLua<T>(L, ptr);
+                Positionable2D::toLua<T>(L, ptr);
+                Scalable::toLua<T>(L, ptr);
             }
 
             // MARK: Positionable2D
@@ -500,10 +565,11 @@ namespace objects {
 
             // MARK: LuaObject
 
-            virtual void toLua(lua_State *L) override {
-                ColorableObject::toLua(L);
-                Scalable::toLua(L);
-                MultiPoint2D::toLua(L);
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
+                ColorableObject::toLua<T>(L, ptr);
+                Scalable::toLua<T>(L, ptr);
+                MultiPoint2D::toLua<T>(L, ptr);
             }
 
             // MARK: Scalable
@@ -537,14 +603,16 @@ namespace objects {
 
         class Rectangle: public ColorableObject, Positionable2D {
             SDL_Rect rect = {0, 0, 0, 0};
+            template<class T>
             static int _lua_getSize(lua_State *L) {
-                SDL_Point p = ((Rectangle*)lua_touserdata(L, lua_upvalueindex(1)))->getSize();
+                SDL_Point p = getUpvalue<T>(L)->getSize();
                 lua_pushinteger(L, p.x);
                 lua_pushinteger(L, p.y);
                 return 2;
             }
+            template<class T>
             static int _lua_setSize(lua_State *L) {
-                ((Rectangle*)lua_touserdata(L, lua_upvalueindex(1)))->setSize({(int)luaL_checkinteger(L, 1), (int)luaL_checkinteger(L, 2)});
+                getUpvalue<T>(L)->setSize({(int)luaL_checkinteger(L, 1), (int)luaL_checkinteger(L, 2)});
                 return 0;
             }
         public:
@@ -570,9 +638,10 @@ namespace objects {
 
             // MARK: LuaObject
 
-            virtual void toLua(lua_State *L) override {
-                ColorableObject::toLua(L);
-                Positionable2D::toLua(L);
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
+                ColorableObject::toLua<T>(L, ptr);
+                Positionable2D::toLua<T>(L, ptr);
                 addLuaMethod(getSize)
                 addLuaMethod(setSize)
             }
@@ -606,9 +675,10 @@ namespace objects {
 
             // MARK: LuaObject
 
-            virtual void toLua(lua_State *L) override {
-                ColorableObject::toLua(L);
-                MultiPoint2D::toLua(L);
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
+                ColorableObject::toLua<T>(L, ptr);
+                MultiPoint2D::toLua<T>(L, ptr);
             }
 
             // MARK: MultiPoint2D
@@ -661,9 +731,10 @@ namespace objects {
 
             // MARK: LuaObject
 
-            virtual void toLua(lua_State *L) override {
-                ColorableObject::toLua(L);
-                MultiPointResizable2D::toLua(L);
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
+                ColorableObject::toLua<T>(L, ptr);
+                MultiPointResizable2D::toLua<T>(L, ptr);
             }
 
             // MARK: MultiPoint2D
@@ -718,9 +789,10 @@ namespace objects {
 
             // MARK: LuaObject
 
-            virtual void toLua(lua_State *L) override {
-                Polygon::toLua(L);
-                Scalable::toLua(L);
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
+                Polygon::toLua<T>(L, ptr);
+                Scalable::toLua<T>(L, ptr);
             }
 
             // MARK: Scalable
@@ -776,11 +848,12 @@ namespace objects {
 
             // MARK: LuaObject
 
-            virtual void toLua(lua_State *L) override {
-                ColorableObject::toLua(L);
-                Positionable2D::toLua(L);
-                Scalable::toLua(L);
-                TextObject::toLua(L);
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
+                ColorableObject::toLua<T>(L, ptr);
+                Positionable2D::toLua<T>(L, ptr);
+                Scalable::toLua<T>(L, ptr);
+                TextObject::toLua<T>(L, ptr);
             }
 
             // MARK: Positionable2D
@@ -849,8 +922,9 @@ namespace objects {
             virtual Text * addText(SDL_Point pos, const std::string& contents, unsigned int color = Colorable::DEFAULT_COLOR, double size = 1.0) = 0;
             virtual Triangle * addTriangle(SDL_Point p1, SDL_Point p2, SDL_Point p3, unsigned int color = Colorable::DEFAULT_COLOR) = 0;
             // MARK: LuaObject
-            virtual void toLua(lua_State *L) override {
-                ObjectGroup::toLua(L);
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
+                ObjectGroup::toLua<T>(L, ptr);
                 addLuaMethod(addDot)
                 addLuaMethod(addGroup)
                 addLuaMethod(addLine)
@@ -861,17 +935,21 @@ namespace objects {
                 addLuaMethod(addTriangle)
             }
         private:
+            template<class T>
             static int _lua_addDot(lua_State *L) {
-                Dot * obj = ((Group2D*)lua_touserdata(L, lua_upvalueindex(1)))->addDot(luaL_checkpoint(L, 1), luaL_optinteger(L, 2, 0xFFFFFFFF), luaL_optinteger(L, 3, 1));
-                obj->toLua(L);
+                Dot * obj = getUpvalue<T>(L)->addDot(luaL_checkpoint(L, 1), luaL_optinteger(L, 2, 0xFFFFFFFF), luaL_optinteger(L, 3, 1));
+                obj->toLua<Dot>(L, savePointer(L, obj));
                 return 1;
             }
+            template<class T>
             static int _lua_addGroup(lua_State *L);
+            template<class T>
             static int _lua_addLine(lua_State *L) {
-                Line * obj = ((Group2D*)lua_touserdata(L, lua_upvalueindex(1)))->addLine(luaL_checkpoint(L, 1), luaL_checkpoint(L, 2), luaL_optinteger(L, 3, 0xFFFFFFFF), luaL_optnumber(L, 4, 1.0));
-                obj->toLua(L);
+                Line * obj = getUpvalue<T>(L)->addLine(luaL_checkpoint(L, 1), luaL_checkpoint(L, 2), luaL_optinteger(L, 3, 0xFFFFFFFF), luaL_optnumber(L, 4, 1.0));
+                obj->toLua<Line>(L, savePointer(L, obj));
                 return 1;
             }
+            template<class T>
             static int _lua_addLines(lua_State *L) {
                 std::vector<SDL_Point> points;
                 luaL_checktype(L, 1, LUA_TTABLE);
@@ -882,10 +960,11 @@ namespace objects {
                     lua_rawgeti(L, 1, i+1);
                 }
                 lua_pop(L, 1);
-                LineLoop * obj = ((Group2D*)lua_touserdata(L, lua_upvalueindex(1)))->addLines(points, luaL_optinteger(L, 2, 0xFFFFFFFF), luaL_optnumber(L, 3, 1.0));
-                obj->toLua(L);
+                LineLoop * obj = getUpvalue<T>(L)->addLines(points, luaL_optinteger(L, 2, 0xFFFFFFFF), luaL_optnumber(L, 3, 1.0));
+                obj->toLua<LineLoop>(L, savePointer(L, obj));
                 return 1;
             }
+            template<class T>
             static int _lua_addPolygon(lua_State *L) {
                 std::vector<SDL_Point> points;
                 luaL_checktype(L, 1, LUA_TTABLE);
@@ -896,23 +975,26 @@ namespace objects {
                     lua_rawgeti(L, 1, i+1);
                 }
                 lua_pop(L, 1);
-                Polygon * obj = ((Group2D*)lua_touserdata(L, lua_upvalueindex(1)))->addPolygon(points, luaL_optinteger(L, 2, 0xFFFFFFFF));
-                obj->toLua(L);
+                Polygon * obj = getUpvalue<T>(L)->addPolygon(points, luaL_optinteger(L, 2, 0xFFFFFFFF));
+                obj->toLua<Polygon>(L, savePointer(L, obj));
                 return 1;
             }
+            template<class T>
             static int _lua_addRectangle(lua_State *L) {
-                Rectangle * obj = ((Group2D*)lua_touserdata(L, lua_upvalueindex(1)))->addRectangle(luaL_checkinteger(L, 1), luaL_checkinteger(L, 2), luaL_checkinteger(L, 3), luaL_checkinteger(L, 4), luaL_optinteger(L, 5, 0xFFFFFFFF));
-                obj->toLua(L);
+                Rectangle * obj = getUpvalue<T>(L)->addRectangle(luaL_checkinteger(L, 1), luaL_checkinteger(L, 2), luaL_checkinteger(L, 3), luaL_checkinteger(L, 4), luaL_optinteger(L, 5, 0xFFFFFFFF));
+                obj->toLua<Rectangle>(L, savePointer(L, obj));
                 return 1;
             }
+            template<class T>
             static int _lua_addText(lua_State *L) {
-                Text * obj = ((Group2D*)lua_touserdata(L, lua_upvalueindex(1)))->addText(luaL_checkpoint(L, 1), luaL_checkstring(L, 2), luaL_optinteger(L, 3, 0xFFFFFFFF), luaL_optnumber(L, 4, 1.0));
-                obj->toLua(L);
+                Text * obj = getUpvalue<T>(L)->addText(luaL_checkpoint(L, 1), luaL_checkstring(L, 2), luaL_optinteger(L, 3, 0xFFFFFFFF), luaL_optnumber(L, 4, 1.0));
+                obj->toLua<Text>(L, savePointer(L, obj));
                 return 1;
             }
+            template<class T>
             static int _lua_addTriangle(lua_State *L) {
-                Triangle * obj = ((Group2D*)lua_touserdata(L, lua_upvalueindex(1)))->addTriangle(luaL_checkpoint(L, 1), luaL_checkpoint(L, 2), luaL_checkpoint(L, 3), luaL_optinteger(L, 4, 0xFFFFFFFF));
-                obj->toLua(L);
+                Triangle * obj = getUpvalue<T>(L)->addTriangle(luaL_checkpoint(L, 1), luaL_checkpoint(L, 2), luaL_checkpoint(L, 3), luaL_optinteger(L, 4, 0xFFFFFFFF));
+                obj->toLua<Triangle>(L, savePointer(L, obj));
                 return 1;
             }
         };
@@ -932,10 +1014,11 @@ namespace objects {
 
             // MARK: LuaObject
 
-            virtual void toLua(lua_State *L) override {
-                BaseObject::toLua(L);
-                Group2D::toLua(L);
-                Positionable2D::toLua(L);
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
+                BaseObject::toLua<T>(L, ptr);
+                Group2D::toLua<T>(L, ptr);
+                Positionable2D::toLua<T>(L, ptr);
             }
 
             // MARK: ObjectGroup
@@ -953,6 +1036,7 @@ namespace objects {
 
             virtual Dot * addDot(SDL_Point pos, unsigned int color = Colorable::DEFAULT_COLOR, int size = 1) override {
                 Dot * retval = new Dot(this);
+                printf("%p\n", retval);
                 retval->setPosition(pos);
                 retval->setColor(color);
                 retval->setScale(size);
@@ -1046,8 +1130,9 @@ namespace objects {
 
         class Frame2D: public ObjectGroup2D {
             SDL_Point size;
+            template<class T>
             static int _lua_getSize(lua_State *L) {
-                SDL_Point p = ((Frame2D*)lua_touserdata(L, lua_upvalueindex(1)))->getSize();
+                SDL_Point p = getUpvalue<T>(L)->getSize();
                 lua_pushinteger(L, p.x);
                 lua_pushinteger(L, p.y);
                 return 2;
@@ -1059,13 +1144,14 @@ namespace objects {
 
             // MARK: BaseObject
 
-            virtual void remove() {}
-            virtual void setDirty() {isDirty = true;}
+            virtual void remove() override {}
+            virtual void setDirty() override {isDirty = true;}
 
             // MARK: LuaObject
 
-            virtual void toLua(lua_State *L) override {
-                ObjectGroup2D::toLua(L);
+            template<class T>
+            void toLua(lua_State *L, void* ptr) {
+                ObjectGroup2D::toLua<T>(L, ptr);
                 addLuaMethod(getSize)
             }
         };
@@ -1085,9 +1171,10 @@ void objects::BaseObject::remove() {
     parent->setDirty();
     delete this;
 }
+template<class T>
 int objects::object2d::Group2D::_lua_addGroup(lua_State *L) {
-    ObjectGroup2D * obj = ((Group2D*)lua_touserdata(L, lua_upvalueindex(1)))->addGroup(luaL_checkpoint(L, 1));
-    obj->toLua(L);
+    ObjectGroup2D * obj = getUpvalue<T>(L)->addGroup(luaL_checkpoint(L, 1));
+    obj->toLua<ObjectGroup2D>(L, savePointer(L, obj));
     return 1;
 }
 
@@ -1150,7 +1237,7 @@ public:
     int call(lua_State *L, const char * method) override {
         const std::string m(method);
         if (m == "canvas") {
-            renderer.canvas2d->toLua(L);
+            renderer.canvas2d->toLua<objects::object2d::Frame2D>(L, savePointer(L, renderer.canvas2d));
             return 1;
         } else if (m == "canvas3d") {
             lua_pushnil(L); // todo
@@ -1238,6 +1325,18 @@ PluginInfo * plugin_init(PluginFunctions * func, const path_t& path) {
 _declspec(dllexport)
 #endif
 int luaopen_glasses(lua_State *L) {
+    Computer * comp = get_comp(L);
+    if (comp->userdata.find(POINTERLIST_INDEX) == comp->userdata.end()) {
+        comp->userdata[POINTERLIST_INDEX] = new pointerlist_t;
+        comp->userdata_destructors[POINTERLIST_INDEX] = [](Computer * comp, int idx, void* ptr) {
+            pointerlist_t * list = (pointerlist_t*)ptr;
+            while (list) {
+                pointerlist_t * next = list->next;
+                delete list;
+                list = next;
+            }
+        };
+    }
     return 0;
 }
 

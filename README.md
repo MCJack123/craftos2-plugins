@@ -25,8 +25,7 @@ Current status:
 * Only Plethora Glasses implemented at the moment.
 * No 3D canvas support.
 * Items are not implemented yet.
-* Using any object after the peripheral is deleted will crash.
-* The current SDL version included with CraftOS-PC (2.0.16) is not compatible with this, as this uses a function that will be added in 2.0.18.
+* The current SDL version included with CraftOS-PC (2.0.16) is not compatible with this, as this uses a function that will be added in 2.0.18. Built DLLs are 
 
 ### Installation
 Drop the `glasses.dll` plugin file into `plugins`, and add the rest of the libraries to the application directory or next to the plugin.
