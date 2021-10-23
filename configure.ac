@@ -56,7 +56,7 @@ AS_IF([test "$(uname)" = "Darwin"], [
     LDFLAGS="$LDFLAGS -shared -fPIC"
 ])
 
-AS_IF([test "x$NO_MIXER" != "x1"], [AC_SUBST(SOUND_TARGET, sound.$SO)], [AC_SUBST(SOUND_TARGET, [])])
+AS_IF([test "x$NO_MIXER" != "x1"], [AC_SUBST(SOUND_TARGET, sound.$SO computronics-tape.$SO)], [AC_SUBST(SOUND_TARGET, [])])
 AS_IF([test "x$NO_DISCORD" != "x1"], [AC_SUBST(DISCORD_TARGET, discord.$SO)], [AC_SUBST(DISCORD_TARGET, [])])
 AS_IF([test "x$NO_GLASSES" != "x1"], [AC_SUBST(GLASSES_TARGET, glasses.$SO)], [AC_SUBST(GLASSES_TARGET, [])])
 

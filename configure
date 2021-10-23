@@ -4947,7 +4947,7 @@ fi
 
 if test "x$NO_MIXER" != "x1"
 then :
-  SOUND_TARGET=sound.$SO
+  SOUND_TARGET=sound.$SO computronics-tape.$SO
 
 else $as_nop
 

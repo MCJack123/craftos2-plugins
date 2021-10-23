@@ -6,6 +6,17 @@ You can download pre-built versions of these plugins for Windows in `x64-windows
 ## ccemux
 The CCEmuX plugin as included with CraftOS-PC. This repo will only contain a mirror of the original file in the CraftOS-PC repo.
 
+## computronics-tape
+Emulates the Computronics tape drive, including DFPWM audio playback.
+
+### Installation
+Just drop the plugin file into `plugins`.
+
+### API
+The peripheral constructor accepts two optional arguments: a path to a file to save/load the tape to/from, and the size of the tape in megabytes (decimals accepted). If no file is specified, the tape data will only be present in memory. The size must be at least 64 kB and less than 16 MB; sizes are rounded to the nearest 64 kB block (so 200 kB is rounded to 192 kB). Size defaults to 1 MB.
+
+[See the Computronics wiki for more information on the peripheral's methods.](https://wiki.vexatos.com/wiki:computronics:tape)
+
 ## discord
 Discord Rich Presence for CraftOS-PC.
 
@@ -25,7 +36,7 @@ Current status:
 * Only Plethora Glasses implemented at the moment.
 * No 3D canvas support.
 * Items are not implemented yet.
-* The current SDL version included with CraftOS-PC (2.0.16) is not compatible with this, as this uses a function that will be added in 2.0.18. Built DLLs are 
+* The current SDL version included with CraftOS-PC (2.0.16) is not compatible with this, as this uses a function that will be added in 2.0.18. Built DLLs are included with the Windows build.
 
 ### Installation
 Drop the `glasses.dll` plugin file into `plugins`, and add the rest of the libraries to the application directory or next to the plugin.
