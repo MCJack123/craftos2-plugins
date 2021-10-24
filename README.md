@@ -13,7 +13,7 @@ Emulates the Computronics tape drive, including DFPWM audio playback.
 Just drop the plugin file into `plugins`.
 
 ### API
-The peripheral constructor accepts two optional arguments: a path to a file to save/load the tape to/from, and the size of the tape in megabytes (decimals accepted). If no file is specified, the tape data will only be present in memory. The size must be at least 64 kB and less than 16 MB; sizes are rounded to the nearest 64 kB block (so 200 kB is rounded to 192 kB). Size defaults to 1 MB.
+The peripheral constructor accepts two optional arguments: a path to a file to save/load the tape to/from, and the size of the tape in megabytes (decimals accepted). If no file is specified, the tape data will only be present in memory. The size must be at least 64 kB and less than 16 MB; sizes are rounded down to the nearest 64 kB block (so 200 kB is rounded to 192 kB). Size defaults to 1 MB.
 
 [See the Computronics wiki for more information on the peripheral's methods.](https://wiki.vexatos.com/wiki:computronics:tape)
 
