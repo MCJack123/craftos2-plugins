@@ -47,16 +47,26 @@ enum class WaveType {
     Sawtooth,
     RSawtooth,
     Square,
-    Noise
+    Noise,
+    Custom,
+    PitchedNoise
+};
+
+enum class InterpolationMode {
+    None,
+    Linear
 };
 
 struct ChannelInfo {
     static constexpr int identifier = 0x1d4c1cd0;
+    int id;
     int channelNumber;
     double position = 0.0;
     WaveType wavetype = WaveType::None;
+    double duty = 0.5;
     unsigned int frequency = 0;
     float amplitude = 1.0;
+    float newAmplitude = -1;
     float pan = 0.0;
     unsigned int fadeSamples = 0;
     unsigned int fadeSamplesMax = 0;
@@ -64,6 +74,10 @@ struct ChannelInfo {
     bool halting = false;
     std::mutex lock;
     int channelCount = 4;
+    int fadeDirection = -1;
+    double customWave[512];
+    int customWaveSize;
+    InterpolationMode interpolation;
 };
 
 static Uint8 empty_audio[32];
@@ -73,6 +87,7 @@ static Uint16 targetFormat = 0;
 static int targetChannels = 0;
 static std::default_random_engine rng;
 static PluginFunctions * func;
+constexpr int ChannelInfo::identifier;
 
 #if SDL_BYTEORDER == SDL_LIL_ENDIAN
 #define MAKELE(size, x) (x)
@@ -97,15 +112,25 @@ static void writeSample(float sample, void* data) {
     }
 }
 
-static float getSample(WaveType type, double amplitude, double pos) {
+static float getSample(ChannelInfo * c, double amplitude, double pos) {
     if (amplitude < 0.0001) return 0.0;
-    switch (type) {
+    switch (c->wavetype) {
         case WaveType::Sine: return amplitude * sin(2.0 * pos * M_PI);
         case WaveType::Triangle: return 2.0 * abs(amplitude * fmod(2.0 * pos + 1.5, 2.0) - amplitude) - amplitude;
         case WaveType::Sawtooth: return amplitude * fmod(2.0 * pos + 1.0, 2.0) - amplitude;
         case WaveType::RSawtooth: return amplitude * fmod(2.0 * (1.0 - pos) + 1.0, 2.0) - amplitude;
-        case WaveType::Square: return -2.0 * amplitude * floor(2 * fmod(pos, 1.0)) + amplitude;
+        case WaveType::Square:
+            if (pos >= c->duty) return -amplitude;
+            else return amplitude;
         case WaveType::Noise: return amplitude * (((float)rng() / (float)rng.max()) * 2.0f - 1.0f);
+        case WaveType::Custom: case WaveType::PitchedNoise: {
+            double p = pos * c->customWaveSize;
+            switch (c->interpolation) {
+                case InterpolationMode::None: return c->customWave[(int)p] * amplitude;
+                case InterpolationMode::Linear: return (c->customWave[(int)p] + (c->customWave[(int)(p+1) % c->customWaveSize] - c->customWave[(int)p]) * (p - floor(p))) * amplitude;
+                // default: fallthrough
+            }
+        }
         default: return 0.0;
     }
 }
@@ -119,20 +144,36 @@ static void generateWaveform(int channel, void* stream, int length, void* udata)
     const int sampleSize = (SDL_AUDIO_BITSIZE(targetFormat) / 8) * targetChannels;
     int numSamples = length / sampleSize;
     for (int i = 0; i < numSamples; i++) {
-        //if (info->wavetype == WaveType::Triangle) printf("%f %f\n", info->position, getSample(info->wavetype, info->amplitude, info->position));
+        //if (info->id == 0) printf("%f %f\n", info->position, getSample(info, info->amplitude, info->position));
         if (targetChannels == 1) {
-            writeSample(info->frequency == 0 ? 0.0 : getSample(info->wavetype, info->amplitude, info->position), (uint8_t*)stream + i * sampleSize);
+            writeSample(info->frequency == 0 ? 0.0 : getSample(info, info->amplitude, info->position), (uint8_t*)stream + i * sampleSize);
         } else {
-            writeSample(info->frequency == 0 ? 0.0 : getSample(info->wavetype, info->amplitude * min(1.0 + info->pan, 1.0), info->position), (uint8_t*)stream + i * sampleSize);
-            writeSample(info->frequency == 0 ? 0.0 : getSample(info->wavetype, info->amplitude * min(1.0 - info->pan, 1.0), info->position), (uint8_t*)stream + i * sampleSize + (SDL_AUDIO_BITSIZE(targetFormat) / 8));
-            for (int j = 2; j < targetChannels; j++) writeSample(info->frequency == 0 ? 0.0 : getSample(info->wavetype, info->amplitude, info->position), (uint8_t*)stream + i * sampleSize + j * (SDL_AUDIO_BITSIZE(targetFormat) / 8));
+            writeSample(info->frequency == 0 ? 0.0 : getSample(info, info->amplitude * min(1.0 + info->pan, 1.0), info->position), (uint8_t*)stream + i * sampleSize);
+            writeSample(info->frequency == 0 ? 0.0 : getSample(info, info->amplitude * min(1.0 - info->pan, 1.0), info->position), (uint8_t*)stream + i * sampleSize + (SDL_AUDIO_BITSIZE(targetFormat) / 8));
+            for (int j = 2; j < targetChannels; j++) writeSample(info->frequency == 0 ? 0.0 : getSample(info, info->amplitude, info->position), (uint8_t*)stream + i * sampleSize + j * (SDL_AUDIO_BITSIZE(targetFormat) / 8));
         }
-        info->position = fmod(info->position + (double)info->frequency / (double)targetFrequency, 1.0);
+        if (info->wavetype == WaveType::PitchedNoise) info->position += (double)info->frequency / (double)targetFrequency / 32.0;
+        else info->position += (double)info->frequency / (double)targetFrequency;
+        if (info->newAmplitude >= 0) {
+            switch (info->wavetype) {
+            case WaveType::Square: case WaveType::Sawtooth: case WaveType::RSawtooth:
+                if (info->position < 1.0) break;
+            default:
+                info->amplitude = info->newAmplitude;
+                info->newAmplitude = -1;
+                break;
+            }
+        }
+        if (info->wavetype == WaveType::PitchedNoise && info->position >= 1.0)
+            for (int i = 0; i < 512; i++)
+                info->customWave[i] = ((float)rng() / (float)rng.max()) * 2.0f - 1.0f;
+        while (info->position >= 1.0) info->position -= 1.0;
         if (info->fadeSamplesMax > 0) {
-            info->amplitude -= info->fadeSamplesInit / info->fadeSamplesMax;
+            info->amplitude += info->fadeSamplesInit / info->fadeSamplesMax * info->fadeDirection;
             if (--info->fadeSamples <= 0) {
                 info->fadeSamples = info->fadeSamplesMax = 0;
-                info->fadeSamplesInit = info->amplitude = 0.0f;
+                info->fadeSamplesInit = 0.0f;
+                info->amplitude = info->fadeDirection == 1 ? 1 : 0;
             }
         }
     }
@@ -168,8 +209,18 @@ static int sound_getWaveType(lua_State *L) {
         case WaveType::Triangle: lua_pushstring(L, "triangle"); break;
         case WaveType::Sawtooth: lua_pushstring(L, "sawtooth"); break;
         case WaveType::RSawtooth: lua_pushstring(L, "rsawtooth"); break;
-        case WaveType::Square: lua_pushstring(L, "square"); break;
+        case WaveType::Square: lua_pushstring(L, "square"); lua_pushnumber(L, info->duty); return 2;
         case WaveType::Noise: lua_pushstring(L, "noise"); break;
+        case WaveType::Custom:
+            lua_pushstring(L, "custom");
+            lua_createtable(L, info->customWaveSize, 0);
+            for (int i = 0; i < info->customWaveSize; i++) {
+                lua_pushinteger(L, i+1);
+                lua_pushnumber(L, info->customWave[i]);
+                lua_settable(L, -3);
+            }
+            return 2;
+        case WaveType::PitchedNoise: lua_pushstring(L, "pitched_noise"); break;
         default: lua_pushstring(L, "unknown"); break;
     }
     return 1;
@@ -192,8 +243,40 @@ static int sound_setWaveType(lua_State *L) {
     else if (type == "triangle") info->wavetype = WaveType::Triangle;
     else if (type == "sawtooth") info->wavetype = WaveType::Sawtooth;
     else if (type == "rsawtooth") info->wavetype = WaveType::RSawtooth;
-    else if (type == "square") info->wavetype = WaveType::Square;
-    else if (type == "noise") info->wavetype = WaveType::Noise;
+    else if (type == "square") {
+        info->wavetype = WaveType::Square;
+        if (!lua_isnoneornil(L, 3)) {
+            double duty = luaL_checknumber(L, 3);
+            if (duty < 0.0 || duty > 1.0) luaL_error(L, "bad argument #3 (duty out of range)");
+            info->duty = duty;
+        } else info->duty = 0.5;
+    } else if (type == "noise") info->wavetype = WaveType::Noise;
+    else if (type == "custom") {
+        luaL_checktype(L, 3, LUA_TTABLE);
+        double points[512];
+        lua_pushinteger(L, 1);
+        lua_gettable(L, 3);
+        if (lua_isnil(L, -1)) luaL_error(L, "bad argument #3 (no points in wavetable)");
+        int i;
+        for (i = 0; !lua_isnil(L, -1); i++) {
+            if (i >= 512) luaL_error(L, "bad argument #3 (wavetable too large)");
+            if (!lua_isnumber(L, -1)) luaL_error(L, "bad point %d in wavetable (expected number, got %s)", i+1, lua_typename(L, lua_type(L, -1)));
+            points[i] = lua_tonumber(L, -1);
+            if (points[i] < -1.0 || points[i] > 1.0) luaL_error(L, "bad point %d in wavetable (value out of range)", i+1);
+            lua_pop(L, 1);
+            lua_pushinteger(L, i+2);
+            lua_gettable(L, 3);
+        }
+        info->wavetype = WaveType::Custom;
+        memcpy(info->customWave, points, i * sizeof(double));
+        info->customWaveSize = i;
+        info->position = 0.0;
+    } else if (type == "pitched_noise" || type == "pitchedNoise" || type == "pnoise") {
+        info->wavetype = WaveType::PitchedNoise;
+        for (int i = 0; i < 512; i++) info->customWave[i] = ((float)rng() / (float)rng.max()) * 2.0f - 1.0f;
+        info->customWaveSize = 512;
+        info->position = 0.0;
+    }
     else luaL_error(L, "bad argument #2 (invalid option '%s')", type.c_str());
     return 0;
 }
@@ -252,7 +335,7 @@ static int sound_setVolume(lua_State *L) {
     float amplitude = luaL_checknumber(L, 2);
     if (amplitude < 0.0 || amplitude > 1.0) luaL_error(L, "bad argument #2 (volume out of range)");
     std::lock_guard<std::mutex> lock(info->lock);
-    info->amplitude = amplitude;
+    info->newAmplitude = amplitude;
     return 0;
 }
 
@@ -286,6 +369,48 @@ static int sound_setPan(lua_State *L) {
 }
 
 /*
+ * Returns the interpolation for a channel's custom wave.
+ * 1: The channel to check (1 - NUM_CHANNELS)
+ * Returns: The current interpolation
+ */
+static int sound_getInterpolation(lua_State *L) {
+    const int channel = luaL_checkinteger(L, 1);
+    if (channel < 1 || channel > NUM_CHANNELS) luaL_error(L, "bad argument #1 (channel out of range)");
+    ChannelInfo * info = (ChannelInfo*)get_comp(L)->userdata[ChannelInfo::identifier] + (channel - 1);
+    switch (info->interpolation) {
+        case InterpolationMode::None: lua_pushstring(L, "none");
+        case InterpolationMode::Linear: lua_pushstring(L, "linear");
+        default: lua_pushstring(L, "unknown");
+    }
+    return 1;
+}
+
+/*
+ * Sets the interpolation mode for a channel's custom wave.
+ * 1: The channel to set (1 - NUM_CHANNELS)
+ * 2: The interpolation ("none", "linear"; 1, 2)
+ */
+static int sound_setInterpolation(lua_State *L) {
+    const int channel = luaL_checkinteger(L, 1);
+    if (channel < 1 || channel > NUM_CHANNELS) luaL_error(L, "bad argument #1 (channel out of range)");
+    if (!lua_isnumber(L, 2) && !lua_isstring(L, 2)) luaL_error(L, "bad argument #2 (expected string or number, got %s)", lua_typename(L, lua_type(L, 2)));
+    ChannelInfo * info = (ChannelInfo*)get_comp(L)->userdata[ChannelInfo::identifier] + (channel - 1);
+    if (lua_isstring(L, 2)) {
+        std::string str(lua_tostring(L, 2));
+        if (str == "none") info->interpolation = InterpolationMode::None;
+        else if (str == "linear") info->interpolation = InterpolationMode::Linear;
+        else luaL_error(L, "bad argument #2 (invalid option %s)", str.c_str());
+    } else {
+        switch (lua_tointeger(L, 2)) {
+            case 1: info->interpolation = InterpolationMode::None; break;
+            case 2: info->interpolation = InterpolationMode::Linear; break;
+            default: luaL_error(L, "bad argument #2 (invalid option %d)", lua_tointeger(L, 2));
+        }
+    }
+    return 0;
+}
+
+/*
  * Starts or stops a fade out operation on a channel.
  * 1: The channel to fade out (1 - NUM_CHANNELS)
  * 2: The time for the fade out in seconds (0 to stop any fade out in progress)
@@ -295,13 +420,17 @@ static int sound_fadeOut(lua_State *L) {
     if (channel < 1 || channel > NUM_CHANNELS) luaL_error(L, "bad argument #1 (channel out of range)");
     ChannelInfo * info = (ChannelInfo*)get_comp(L)->userdata[ChannelInfo::identifier] + (channel - 1);
     double time = luaL_checknumber(L, 2);
-    if (time < 0.0) luaL_error(L, "bad argument #2 (time out of range)");
     std::lock_guard<std::mutex> lock(info->lock);
-    if (time < 0.0001) {
+    if (time < -0.000001) {
+        info->fadeSamplesInit = 1 - info->amplitude;
+        info->fadeDirection = 1;
+        info->fadeSamples = info->fadeSamplesMax = -time * targetFrequency;
+    } else if (time < 0.000001) {
         info->fadeSamplesInit = 0.0;
         info->fadeSamples = info->fadeSamplesMax = 0;
     } else {
         info->fadeSamplesInit = info->amplitude;
+        info->fadeDirection = -1;
         info->fadeSamples = info->fadeSamplesMax = time * targetFrequency;
     }
     return 0;
@@ -317,6 +446,8 @@ static luaL_Reg sound_lib[] = {
     {"setVolume", sound_setVolume},
     {"getPan", sound_getPan},
     {"setPan", sound_setPan},
+    {"getInterpolation", sound_getInterpolation},
+    {"setInterpolation", sound_setInterpolation},
     {"fadeOut", sound_fadeOut},
     {NULL, NULL}
 };
@@ -350,6 +481,7 @@ int luaopen_sound(lua_State *L) {
         Mix_QuerySpec(&targetFrequency, &targetFormat, &targetChannels);
         Mix_AllocateChannels(Mix_AllocateChannels(-1) + num_channels);
         for (int i = 0; i < num_channels; i++) {
+            channels[i].id = i;
             channels[i].channelCount = num_channels;
             channels[i].channelNumber = Mix_GroupAvailable(-1);
             while (channels[i].channelNumber == -1) {
@@ -365,6 +497,8 @@ int luaopen_sound(lua_State *L) {
         comp->userdata_destructors[ChannelInfo::identifier] = ChannelInfo_destructor;
     }
     luaL_register(L, "sound", sound_lib);
+    lua_pushinteger(L, 2);
+    lua_setfield(L, -2, "version");
     return 1;
 }
 
@@ -372,6 +506,6 @@ int luaopen_sound(lua_State *L) {
 _declspec(dllexport)
 #endif
 void plugin_deinit(PluginInfo * info) {
-    Mix_FreeChunk(empty_chunk);
+    //Mix_FreeChunk(empty_chunk);
 }
 }
