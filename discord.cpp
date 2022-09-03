@@ -45,7 +45,8 @@ static FileEntry autorun_hook {
 if not _G.discord then return end\n\
 local discord = _G.discord\n\
 _G.discord = nil\n\
-local native_load, native_loadstring = load, loadstring\n\
+local os, fs = os, fs\n\
+local nativeload, nativeloadstring = load, loadstring\n\
 local lastStatus = {'Computer ' .. os.computerID(), 'In the shell'}\n\
 if os.computerLabel() then lastStatus[1] = 'Computer \"' .. os.computerLabel() .. '\"' end\n\
 local function status(path, meta)\n\
@@ -74,7 +75,7 @@ local function revert() lastStatus = lastStatus[3] or {'Unknown State', ''} disc
 _G.load = function(chunk, name, mode, env)\n\
     if name and name:sub(1, 1) == '@' and not (type(mode) == 'string' and mode:match '_donotwrapfunction$') then\n\
         if type(mode) == 'string' then mode = mode:gsub('_donotwrapfunction$', '') end\n\
-        local fn, err = native_load(chunk, name, mode, env)\n\
+        local fn, err = nativeload(chunk, name, mode, env)\n\
         if not fn then return fn, err end\n\
         return function(...)\n\
             if status(name:sub(2)) then return fn(...) end\n\
@@ -83,12 +84,12 @@ _G.load = function(chunk, name, mode, env)\n\
             if not res[1] then error(res[2], 0) end\n\
             return table.unpack(res, 2, res.n)\n\
         end\n\
-    else return native_load(chunk, name, mode, env) end\n\
+    else return nativeload(chunk, name, mode, env) end\n\
 end\n\
 \n\
 _G.loadstring = function(chunk, name)\n\
     if name and name:sub(1, 1) == '@' then\n\
-        local fn, err = native_loadstring(chunk, name)\n\
+        local fn, err = nativeloadstring(chunk, name)\n\
         if not fn then return fn, err end\n\
         return function(...)\n\
             if status(name:sub(2)) then return fn(...) end\n\
@@ -97,7 +98,7 @@ _G.loadstring = function(chunk, name)\n\
             if not res[1] then error(res[2], 0) end\n\
             return table.unpack(res, 2, res.n)\n\
         end\n\
-    else return native_loadstring(chunk, name) end\n\
+    else return nativeloadstring(chunk, name) end\n\
 end\n\
 \n\
 _G.dofile = function(filename)\n\
