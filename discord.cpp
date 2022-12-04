@@ -35,7 +35,7 @@
 #include "client_id.h"
 
 static PluginInfo info("discord");
-static PluginFunctions * craftospc;
+static const PluginFunctions * craftospc;
 static discord::Core* core{};
 static discord::Activity activity;
 static bool connected = true;
@@ -162,7 +162,7 @@ extern "C" {
 #ifdef _WIN32
 _declspec(dllexport)
 #endif
-PluginInfo * plugin_init(PluginFunctions * func, const path_t& path) {
+PluginInfo * plugin_init(const PluginFunctions * func, const path_t& path) {
     craftospc = func;
     if (discord::Core::Create(client_id, DiscordCreateFlags_Default, &core) != discord::Result::Ok) {
         connected = false;

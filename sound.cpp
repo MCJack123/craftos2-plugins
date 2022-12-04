@@ -86,7 +86,7 @@ static int targetFrequency = 0;
 static Uint16 targetFormat = 0;
 static int targetChannels = 0;
 static std::default_random_engine rng;
-static PluginFunctions * func;
+static const PluginFunctions * func;
 constexpr int ChannelInfo::identifier;
 
 #if SDL_BYTEORDER == SDL_LIL_ENDIAN
@@ -456,7 +456,7 @@ extern "C" {
 #ifdef _WIN32
 _declspec(dllexport)
 #endif
-PluginInfo * plugin_init(PluginFunctions * func, const path_t& path) {
+PluginInfo * plugin_init(const PluginFunctions * func, const path_t& path) {
     if (func->abi_version != PLUGIN_VERSION) return &info;
     memset(empty_audio, 0, 32);
     empty_chunk = Mix_QuickLoad_RAW(empty_audio, 32);

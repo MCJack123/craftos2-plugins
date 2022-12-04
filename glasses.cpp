@@ -96,7 +96,7 @@ constexpr int WIDTH = 512;
 constexpr int HEIGHT = 512 / 16 * 9;
 static std::list<GlassesRenderer*> renderTargets;
 static std::mutex renderTargetsLock;
-static PluginFunctions * functions;
+static const PluginFunctions * functions;
 static PluginInfo info("glasses", 4);
 static bool renderRunning = true;
 static std::thread renderThread;
@@ -1306,7 +1306,7 @@ extern "C" {
 #ifdef _WIN32
 _declspec(dllexport)
 #endif
-PluginInfo * plugin_init(PluginFunctions * func, const path_t& path) {
+PluginInfo * plugin_init(const PluginFunctions * func, const path_t& path) {
     functions = func;
     SDL_version v;
     SDL_GetVersion(&v);

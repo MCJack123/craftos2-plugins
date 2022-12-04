@@ -332,7 +332,7 @@ extern "C" {
 #ifdef _WIN32
 _declspec(dllexport)
 #endif
-PluginInfo * plugin_init(PluginFunctions * func, const path_t& path) {
+PluginInfo * plugin_init(const PluginFunctions * func, const path_t& path) {
     func->registerPeripheral("tape_drive", &tape_drive::init);
     return &info;
 }

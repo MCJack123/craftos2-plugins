@@ -97,7 +97,7 @@ public:
     library_t getMethods() const override {return methods;}
 };
 
-static PluginFunctions * functions;
+static const PluginFunctions * functions;
 static PluginInfo info("periphemu_lua", 6);
 
 static int periphemu_lua_create(lua_State *L) {
@@ -125,7 +125,7 @@ extern "C" {
 #ifdef _WIN32
 _declspec(dllexport)
 #endif
-PluginInfo * plugin_init(PluginFunctions * func, const path_t& path) {
+PluginInfo * plugin_init(const PluginFunctions * func, const path_t& path) {
     functions = func;
     return &info;
 }
